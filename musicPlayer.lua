@@ -41,8 +41,10 @@ end
 
 function players_list:get_free_player()
     for k,v in pairs (self) do
-    if v.busy == false then
+    if (type(v) == 'table') then
+      if v.busy == false then
         return v
+      end
     end
   end
   
@@ -70,7 +72,7 @@ function players_list:play_chord()
 end
 
 function song:loadSong(path)
-  --Кинуть ошибку, если такого файла не существует
+  -- Throw an error if such a file does not exist
   if not fs.exists(path) then error("File \""..path.."\" does not exist.\n") end
   local file = io.open(path, "rb")
   self.length = get_int_16(getByte(file),getByte(file))
@@ -83,8 +85,8 @@ function song:loadSong(path)
   
   self.tempo =  get_int_16(getByte(file),getByte(file))
   self.tempo = self.tempo * 0.01
-  local tmp = file:read(23) -- тут ненужная информация, ну совсем ненужная
-  tmp = readString(file) -- тут тоже, но это строка вдобавок
+  local tmp = file:read(23) -- there is unnecessary information, well, absolutely unnecessary
+  tmp = readString(file) -- here too, but this is a string in addition
   
   print(self.name)
   print(self.description)
@@ -115,7 +117,11 @@ function song:loadSong(path)
     end
     layer = layer + jumps
     self.song_ticks[counter].instrument = getByte(file)
-    self.song_ticks[counter].note =( getByte(file) - 33 ) % 24
+    local nextNote = ( getByte(file) - 33 )
+    while (nextNote < 0) do
+      nextNote = nextNote + 12
+    end
+    self.song_ticks[counter].note = nextNote % 24
     self.song_ticks[counter].layer = layer
     self.song_ticks[counter].tick = tick
     counter = counter + 1
@@ -170,7 +176,7 @@ function get_int_32(b1, b2, b3, b4)
 end
 
 --------
--- Тут собственно точка входа программы
+-- Here the actual entry point of the program
 --------
 
 local args = shell.parse(...)
@@ -180,31 +186,31 @@ if #args == 0 then
 end
 
 local path = args[1]
--- находим подключенные к компьютеру музыкальные блоки
+-- we find the musical blocks connected to the computer
 get_players()
--- Загружаем песню из файла
+-- Load a song from file
 song:loadSong(path)
 
--- Задаем начальные параметры
+-- Set the initial parameters
 local play_complete = false
 current_tick = 0
 block_position = 1
 
---Играем песню пока не кончится
+-- We play a song until it ends
 local stop = false
 local paused = false
 while not stop do
   if (not paused) then
-    -- Достаем информацию о нотах из текущего тика, настраиваем музыкальные блоки
+    -- Get information about the notes from the current tick, set up music block
     block_position = song:set_tick(players_list, current_tick, block_position)
   
-    -- Играем аккорд
+    -- Playing a chord
     players_list:play_chord()
     players_list:clear_players()
-    -- Инкрементим тик
+    -- Incremental tick
     current_tick = current_tick + 1
-    -- Ждем заданное время до следующего тика
-    stop = event.pullFiltered(1/song.tempo, 
+    -- We are waiting for the set time until the next tick
+    stop = event.pullFiltered(1/song.tempo * 2, 
       function(name,...)
         if (name == "pause_song") then
           print("pausing...")
